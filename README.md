@@ -8,7 +8,7 @@ This reduces dependencies and allows you to include a static library without rec
 
 Inspired by the article [How can I link a static library to a dynamic library?](https://blog.ramdoot.in/how-can-i-link-a-static-library-to-a-dynamic- library-e1f25c8095ef)
 
-In this tutorial, the static library `libfiles` is compiled from the files file1.c and file2.c, while the dynamic library `libfiled` is compiled from the file file3.c and embeds all the symbols and functions of ` libfiles`.
+In this tutorial, the static library `libfiles` is compiled from the files file1.c and file2.c, while the dynamic library `libfiled` is compiled from the file file3.c and embeds all the symbols and functions of `libfiles`. The source files are in src/, the header files in include/. 
 
 
 ## Static library files
@@ -80,9 +80,9 @@ int main() {
 }
 ```
 
-### Compilation
+## With gcc on Linux or other Unix-like systems
 
-The source files are in src/, the header files in include/. First, create the directories that will contain the generated files:
+First, create the directories that will contain the generated files:
 
 ```bash
 mkdir -p obj lib bin
@@ -118,7 +118,7 @@ gcc -o bin/main src/main.c -Llib -lfiled -Wl,-rpath,./lib -Iinclude
 ## Execution
 
 ```bash
-bin/main
+$ bin/main
 func1
 calling func2 from func3
 func2
@@ -127,7 +127,7 @@ func3
 
 There you have it, the dynamic library has called a function from the static library.
 
-## Makefile
+## with Gnu Make on Linux or other Unix-like systems
 
 Now, let's automate the process with a Makefile:
 
@@ -185,6 +185,20 @@ clean:
 
 -include $(OBJ:.o=.d)
 ```
+
+```bash
+$ make
+mkdir -p obj
+cc -Iinclude -MMD -MP -Wall -c src/main.c -o obj/main.o
+cc -Iinclude -MMD -MP -Wall -fPIC -c src/file3.c -o obj/file3.o
+cc -Iinclude -MMD -MP -Wall -fPIC -c src/file1.c -o obj/file1.o
+cc -Iinclude -MMD -MP -Wall -fPIC -c src/file2.c -o obj/file2.o
+mkdir -p lib
+ar rcs lib/libfiles.a obj/file1.o obj/file2.o
+ranlib lib/libfiles.a
+cc -shared -o lib/libfiled.so -Wl,--whole-archive lib/libfiles.a -Wl,--no-whole-archive  obj/file3.o
+mkdir -p bin
+cc -Llib obj/main.o -lfiled -Wl,-rpath,./lib -o bin/main
 
 
 ## With CMake
