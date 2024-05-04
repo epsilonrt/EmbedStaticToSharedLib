@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include "libfiles.h"
+#include "files.h"
 
 void func3() {
   printf ("calling func2 from func3\n");

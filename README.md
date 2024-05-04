@@ -6,14 +6,14 @@ The idea is to embed all the functions of the static library in the shared libra
 
 This reduces dependencies and allows you to include a static library without recompiling it while respecting the license.
 
-Inspired by the article [How can I link a static library to a dynamic library?](https://blog.ramdoot.in/how-can-i-link-a-static-library-to-a-dynamic- library-e1f25c8095ef)
+Inspired by the article [How can I link a static library to a dynamic library?](https://blog.ramdoot.in/how-can-i-link-a-static-library-to-a-dynamic-library-e1f25c8095ef)
 
 In this tutorial, the static library `libfiles` is compiled from the files file1.c and file2.c, while the dynamic library `libfiled` is compiled from the file file3.c and embeds all the symbols and functions of `libfiles`. The source files are in src/, the header files in include/. 
 
 
 ## Static library files
 
-**include/libfiles.h**
+**include/files.h**
 
 ```c
 #pragma once
@@ -45,11 +45,11 @@ void func2() {
 
 La bibliothèque dynamique inclura la bibliothèque statique et utilisera ses fonctions.
 
-**include/libfiled.h**
+**include/filed.h**
 
 ```c
 #pragma once
-#include "libfiles.h"
+#include "files.h"
 void func3();
 ```
 
@@ -57,7 +57,7 @@ void func3();
 
 ```c
 #include <stdio.h>
-#include "libfiles.h"
+#include "files.h"
 
 void func3() {
   printf ("calling func2 from func3\n");
@@ -71,7 +71,7 @@ void func3() {
 **src/main.c**
 
 ```c
-#include "libfiled.h"
+#include "filed.h"
 
 int main() {
   func1();
