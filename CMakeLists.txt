@@ -1,11 +1,12 @@
 
-cmake_minimum_required(VERSION 3.22)
+cmake_minimum_required(VERSION 3.13)
 project(embedlib LANGUAGES C)
 
 if (MSVC)
     set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 endif()
 
+# Create a static library with the files library
 add_library(files STATIC)
 target_include_directories(files PRIVATE "${PROJECT_SOURCE_DIR}/include")
 target_sources(files 
@@ -15,7 +16,7 @@ target_sources(files
     PUBLIC 
         include/files.h)
 
-
+# Now create a shared library that embeds the files library
 add_library(filed SHARED)
 target_include_directories(filed PUBLIC "${PROJECT_SOURCE_DIR}/include")
 target_sources(filed 
@@ -23,15 +24,37 @@ target_sources(filed
         src/file3.c 
     PUBLIC
         include/filed.h)
-if (CMAKE_LINK_LIBRARY_USING_WHOLE_ARCHIVE)
-#    target_compile_definitions(files PRIVATE "WHOLE_ARCHIVE")
-#    target_link_libraries(filed PRIVATE "$<LINK_LIBRARY:WHOLE_ARCHIVE,files>")
-else()
-    message(WARNING "CMAKE_LINK_LIBRARY_USING_WHOLE_ARCHIVE not supported")
-endif()
-    
-add_executable(main)
-target_sources(main PRIVATE "src/main.c")
-target_link_libraries(main PRIVATE filed)
+set_target_properties(filed PROPERTIES PUBLIC_HEADER "include/filed.h;include/files.h")
 
-#install(TARGETS libfiled FILE_SET HEADERS)
+# This is a simple example of how to embed a library in another library
+# Since CMake 3.24, the CMAKE_LINK_LIBRARY_USING_WHOLE_ARCHIVE feature is available
+# see https://cmake.org/cmake/help/latest/variable/CMAKE_LANG_LINK_LIBRARY_USING_FEATURE.html
+if(CMAKE_C_COMPILER_ID STREQUAL "AppleClang")
+    target_link_options(filed PRIVATE "-force_load" "$<TARGET_FILE:files>")
+elseif(CMAKE_C_COMPILER_ID STREQUAL "GNU" AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_link_options(filed PRIVATE "-Wl,--whole-archive" "$<TARGET_FILE:files>" "-Wl,--no-whole-archive")
+elseif(CMAKE_C_COMPILER_ID STREQUAL "MSVC")
+    target_link_options(filed PRIVATE "/WHOLEARCHIVE:$<TARGET_FILE:files>")
+else()
+    # feature not yet supported for the other environments
+    message(FATAL_ERROR "CMAKE_LINK_LIBRARY_USING_WHOLE_ARCHIVE not supported")
+endif()
+
+# Create an executable that uses the filed library    
+add_executable(${PROJECT_NAME})
+target_sources(${PROJECT_NAME} PRIVATE "src/main.c")
+target_link_libraries(${PROJECT_NAME} PRIVATE filed)
+
+install(TARGETS filed PUBLIC_HEADER)
+install(TARGETS ${PROJECT_NAME})
+# Add the install directory to the rpath of the executable
+set_target_properties(${PROJECT_NAME} PROPERTIES
+    INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
+
+# Add an uninstall target
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake_uninstall.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake"
+    IMMEDIATE @ONLY)
+add_custom_target(uninstall
+    COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake)

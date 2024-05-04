@@ -4,7 +4,7 @@ OBJ_DIR := obj
 BIN_DIR := bin
 LIB_DIR := lib
 
-EXE := $(BIN_DIR)/main
+EXE := $(BIN_DIR)/embedlib
 EXE_SRC := $(SRC_DIR)/main.c
 EXE_OBJ := $(EXE_SRC:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
 

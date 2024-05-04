@@ -109,16 +109,16 @@ Then create the dynamic library:
 gcc -o lib/libfiled.so -Wl,--whole-archive lib/libfiles.a -Wl,--no-whole-archive -shared obj/file3.o
 ```
 
-Build the main program:
+Build the embedlib program:
 
 ```bash
-gcc -o bin/main src/main.c -Llib -lfiled -Wl,-rpath,./lib -Iinclude
+gcc -o bin/embedlib src/main.c -Llib -lfiled -Wl,-rpath,./lib -Iinclude
 ```
 
 ## Execution
 
 ```bash
-$ bin/main
+$ bin/embedlib
 func1
 calling func2 from func3
 func2
@@ -137,7 +137,7 @@ OBJ_DIR := obj
 BIN_DIR := bin
 LIB_DIR := lib
 
-EXE := $(BIN_DIR)/main
+EXE := $(BIN_DIR)/embedlib
 EXE_SRC := $(SRC_DIR)/main.c
 EXE_OBJ := $(EXE_SRC:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
 
@@ -198,10 +198,119 @@ ar rcs lib/libfiles.a obj/file1.o obj/file2.o
 ranlib lib/libfiles.a
 cc -shared -o lib/libfiled.so -Wl,--whole-archive lib/libfiles.a -Wl,--no-whole-archive  obj/file3.o
 mkdir -p bin
-cc -Llib obj/main.o -lfiled -Wl,-rpath,./lib -o bin/main
+cc -Llib obj/main.o -lfiled -Wl,-rpath,./lib -o bin/embedlib
+```
+
+## with CMake
+
+The previous solutions are for Linux or Unix-like systems. For portability, we can use CMake.
+
+The CMakeLists.txt file:
+
+```cmake
+cmake_minimum_required(VERSION 3.13)
+project(embedlib LANGUAGES C)
+
+if (MSVC)
+    set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+endif()
+
+# Create a static library with the files library
+add_library(files STATIC)
+target_include_directories(files PRIVATE "${PROJECT_SOURCE_DIR}/include")
+target_sources(files 
+    PRIVATE 
+        src/file1.c 
+        src/file2.c 
+    PUBLIC 
+        include/files.h)
 
 
-## With CMake
+add_library(filed SHARED)
+target_include_directories(filed PUBLIC "${PROJECT_SOURCE_DIR}/include")
+target_sources(filed 
+    PRIVATE 
+        src/file3.c 
+    PUBLIC
+        include/filed.h)
+set_target_properties(filed PROPERTIES PUBLIC_HEADER "include/filed.h;include/files.h")
 
-https://stackoverflow.com/questions/11697820/cmake-link-static-library-to-dynamic-library  
-https://discourse.cmake.org/t/automatically-wrapping-a-static-library-in-whole-archive-no-whole-archive-when-used-during-linking/5883
+# This is a simple example of how to embed a library in another library
+# Since CMake 3.24, the CMAKE_LINK_LIBRARY_USING_WHOLE_ARCHIVE feature is available
+# see https://cmake.org/cmake/help/latest/variable/CMAKE_LANG_LINK_LIBRARY_USING_FEATURE.html
+if(CMAKE_C_COMPILER_ID STREQUAL "AppleClang")
+    target_link_options(filed PRIVATE "-force_load" "$<TARGET_FILE:files>")
+elseif(CMAKE_C_COMPILER_ID STREQUAL "GNU" AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_link_options(filed PRIVATE "-Wl,--whole-archive" "$<TARGET_FILE:files>" "-Wl,--no-whole-archive")
+elseif(CMAKE_C_COMPILER_ID STREQUAL "MSVC")
+    target_link_options(filed PRIVATE "/WHOLEARCHIVE:$<TARGET_FILE:files>")
+else()
+    # feature not yet supported for the other environments
+    message(FATAL_ERROR "CMAKE_LINK_LIBRARY_USING_WHOLE_ARCHIVE not supported")
+endif()
+
+# Create an executable that uses the filed library    
+add_executable(${PROJECT_NAME})
+target_sources(${PROJECT_NAME} PRIVATE "src/main.c")
+target_link_libraries(${PROJECT_NAME} PRIVATE filed)
+
+install(TARGETS filed PUBLIC_HEADER)
+install(TARGETS ${PROJECT_NAME})
+set_target_properties(${PROJECT_NAME} PROPERTIES
+    INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
+
+# Add an uninstall target
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake_uninstall.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake"
+    IMMEDIATE @ONLY)
+add_custom_target(uninstall
+    COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake)
+```
+
+Then you can build and install the project:
+
+```bash
+$ mkdir -p build
+$ cd build
+$ cmake ..
+-- The C compiler identification is GNU 11.4.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/cc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /home/epsilonrt/src/EmbedStaticToSharedLib/build
+$ make
+[ 14%] Building C object CMakeFiles/files.dir/src/file1.c.o
+[ 28%] Building C object CMakeFiles/files.dir/src/file2.c.o
+[ 42%] Linking C static library libfiles.a
+[ 42%] Built target files
+[ 57%] Building C object CMakeFiles/filed.dir/src/file3.c.o
+[ 71%] Linking C shared library libfiled.so
+[ 71%] Built target filed
+[ 85%] Building C object CMakeFiles/embedlib.dir/src/main.c.o
+[100%] Linking C executable embedlib
+[100%] Built target embedlib
+$ sudo make install
+Consolidate compiler generated dependencies of target files
+[ 42%] Built target files
+Consolidate compiler generated dependencies of target filed
+[ 71%] Built target filed
+Consolidate compiler generated dependencies of target embedlib
+[100%] Built target embedlib
+Install the project...
+-- Install configuration: ""
+-- Installing: /usr/local/lib/libfiled.so
+-- Installing: /usr/local/include/filed.h
+-- Installing: /usr/local/include/files.h
+-- Installing: /usr/local/bin/embedlib
+-- Set runtime path of "/usr/local/bin/embedlib" to "/usr/local/lib"
+$ embedlib 
+func1
+calling func2 from func3
+func2
+func3
+```
