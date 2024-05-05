@@ -30,11 +30,11 @@ set_target_properties(filed PROPERTIES PUBLIC_HEADER "include/filed.h;include/fi
 # Since CMake 3.24, the CMAKE_LINK_LIBRARY_USING_WHOLE_ARCHIVE feature is available
 # see https://cmake.org/cmake/help/latest/variable/CMAKE_LANG_LINK_LIBRARY_USING_FEATURE.html
 if(CMAKE_C_COMPILER_ID STREQUAL "AppleClang")
-    target_link_options(filed PRIVATE "-force_load" "$<TARGET_FILE:files>")
+    target_link_options(filed PUBLIC "-force_load" "$<TARGET_FILE:files>")
 elseif(CMAKE_C_COMPILER_ID STREQUAL "GNU" AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    target_link_options(filed PRIVATE "-Wl,--whole-archive" "$<TARGET_FILE:files>" "-Wl,--no-whole-archive")
+    target_link_options(filed PUBLIC "-Wl,--whole-archive" "$<TARGET_FILE:files>" "-Wl,--no-whole-archive")
 elseif(CMAKE_C_COMPILER_ID STREQUAL "MSVC")
-    target_link_options(filed PRIVATE "/WHOLEARCHIVE:$<TARGET_FILE:files>")
+    target_link_options(filed PUBLIC "/WHOLEARCHIVE:$<TARGET_FILE:files>")
 else()
     # feature not yet supported for the other environments
     message(FATAL_ERROR "CMAKE_LINK_LIBRARY_USING_WHOLE_ARCHIVE not supported")
