@@ -225,7 +225,7 @@ target_sources(files
     PUBLIC 
         include/files.h)
 
-
+# Now create a shared library that embeds the files library
 add_library(filed SHARED)
 target_include_directories(filed PUBLIC "${PROJECT_SOURCE_DIR}/include")
 target_sources(filed 
@@ -239,11 +239,11 @@ set_target_properties(filed PROPERTIES PUBLIC_HEADER "include/filed.h;include/fi
 # Since CMake 3.24, the CMAKE_LINK_LIBRARY_USING_WHOLE_ARCHIVE feature is available
 # see https://cmake.org/cmake/help/latest/variable/CMAKE_LANG_LINK_LIBRARY_USING_FEATURE.html
 if(CMAKE_C_COMPILER_ID STREQUAL "AppleClang")
-    target_link_options(filed PRIVATE "-force_load" "$<TARGET_FILE:files>")
+    target_link_options(filed PUBLIC "-force_load" "$<TARGET_FILE:files>")
 elseif(CMAKE_C_COMPILER_ID STREQUAL "GNU" AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    target_link_options(filed PRIVATE "-Wl,--whole-archive" "$<TARGET_FILE:files>" "-Wl,--no-whole-archive")
+    target_link_options(filed PUBLIC "-Wl,--whole-archive" "$<TARGET_FILE:files>" "-Wl,--no-whole-archive")
 elseif(CMAKE_C_COMPILER_ID STREQUAL "MSVC")
-    target_link_options(filed PRIVATE "/WHOLEARCHIVE:$<TARGET_FILE:files>")
+    target_link_options(filed PUBLIC "/WHOLEARCHIVE:$<TARGET_FILE:files>")
 else()
     # feature not yet supported for the other environments
     message(FATAL_ERROR "CMAKE_LINK_LIBRARY_USING_WHOLE_ARCHIVE not supported")
@@ -256,6 +256,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE filed)
 
 install(TARGETS filed PUBLIC_HEADER)
 install(TARGETS ${PROJECT_NAME})
+# Add the install directory to the rpath of the executable
 set_target_properties(${PROJECT_NAME} PROPERTIES
     INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 
@@ -268,7 +269,7 @@ add_custom_target(uninstall
     COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake)
 ```
 
-Then you can build and install the project:
+Then you can build and install the project. Below is an example of how to build and run the program on Linux:
 
 ```bash
 $ mkdir -p build
@@ -314,3 +315,93 @@ calling func2 from func3
 func2
 func3
 ```
+
+Then the same program can be run on Windows, using the Visual Studio Developer Command Prompt and the NMake generator. Below is an example of how to build and run the program on Windows with Visual Studio 2022 Build Tools, first create the build directory and configure the project with CMake:
+
+```cmd
+**********************************************************************
+** Visual Studio 2022 Developer Command Prompt v17.7.4
+** Copyright (c) 2022 Microsoft Corporation
+**********************************************************************
+
+C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools>cd C:\Users\pasca\src\EmbedStaticToSharedLib
+
+C:\Users\pasca\src\EmbedStaticToSharedLib>md build
+
+C:\Users\pasca\src\EmbedStaticToSharedLib>cd build
+
+C:\Users\pasca\src\EmbedStaticToSharedLib\build>cmake -G "NMake Makefiles" -DCMAKE_INSTALL_PREFIX=./embedlib ..
+-- The C compiler identification is MSVC 19.37.32824.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.37.32822/bin/Hostx64/x64/cl.exe - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Configuring done (2.2s)
+-- Generating done (0.2s)
+-- Build files have been written to: C:/Users/pasca/src/EmbedStaticToSharedLib/build
+```
+
+![Configure with CMake](doc/images/cmake-win.png)
+
+  Then build with NMake:
+  
+  ```cmd
+C:\Users\pasca\src\EmbedStaticToSharedLib\build>nmake
+
+Microsoft (R) Program Maintenance Utility Version 14.37.32824.0
+Copyright (C) Microsoft Corporation. Tous droits réservés.
+
+[ 14%] Building C object CMakeFiles/files.dir/src/file1.c.obj
+file1.c
+[ 28%] Building C object CMakeFiles/files.dir/src/file2.c.obj
+file2.c
+[ 42%] Linking C static library files.lib
+[ 42%] Built target files
+[ 57%] Building C object CMakeFiles/filed.dir/src/file3.c.obj
+file3.c
+[ 71%] Linking C shared library filed.dll
+[ 71%] Built target filed
+[ 85%] Building C object CMakeFiles/embedlib.dir/src/main.c.obj
+main.c
+[100%] Linking C executable embedlib.exe
+[100%] Built target embedlib
+```
+
+![Build with NMake](doc/images/build-win.png)
+
+Then install the program:
+
+```cmd
+C:\Users\pasca\src\EmbedStaticToSharedLib\build>nmake install
+
+Microsoft (R) Program Maintenance Utility Version 14.37.32824.0
+Copyright (C) Microsoft Corporation. Tous droits réservés.
+
+[ 42%] Built target files
+[ 71%] Built target filed
+[100%] Built target embedlib
+Install the project...
+-- Install configuration: "Debug"
+-- Installing: C:/Users/pasca/src/EmbedStaticToSharedLib/build/embedlib/lib/filed.lib
+-- Installing: C:/Users/pasca/src/EmbedStaticToSharedLib/build/embedlib/bin/filed.dll
+-- Installing: C:/Users/pasca/src/EmbedStaticToSharedLib/build/embedlib/include/filed.h
+-- Installing: C:/Users/pasca/src/EmbedStaticToSharedLib/build/embedlib/include/files.h
+-- Installing: C:/Users/pasca/src/EmbedStaticToSharedLib/build/embedlib/bin/embedlib.exe
+
+C:\Users\pasca\src\EmbedStaticToSharedLib\build>
+```
+
+Finally, run the program:
+
+```cmd
+C:\Users\pasca\src\EmbedStaticToSharedLib\build>cd embedlib/bin
+
+C:\Users\pasca\src\EmbedStaticToSharedLib\build\embedlib\bin>embedlib.exe
+func1
+calling func2 from func3
+func2
+func3
+```
+
+![Install and run](doc/images/install-run-win.png)
