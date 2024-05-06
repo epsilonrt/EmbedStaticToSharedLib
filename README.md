@@ -109,19 +109,18 @@ Then create the dynamic library:
 gcc -o lib/libfiled.so -Wl,--whole-archive lib/libfiles.a -Wl,--no-whole-archive -shared obj/file3.o
 ```
 
-Build the embedlib program:
+Build the test_filed program:
 
 ```bash
-gcc -o bin/embedlib src/main.c -Llib -lfiled -Wl,-rpath,./lib -Iinclude
+gcc -o bin/test_filed test/test_filed.c -Llib -lfiled -Wl,-rpath,./lib -Iinclude
 ```
 
 ## Execution
 
 ```bash
-$ bin/embedlib
+$ bin/test_filed
 func1
-calling func2 from func3
-func2
+calling func2 from func3... func2
 func3
 ```
 
@@ -133,13 +132,14 @@ Now, let's automate the process with a Makefile:
 
 ```makefile
 SRC_DIR := src
+TEST_DIR := test
 OBJ_DIR := obj
 BIN_DIR := bin
 LIB_DIR := lib
 
-EXE := $(BIN_DIR)/embedlib
-EXE_SRC := $(SRC_DIR)/main.c
-EXE_OBJ := $(EXE_SRC:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
+EXE := $(BIN_DIR)/test_filed
+EXE_SRC := $(TEST_DIR)/test_filed.c
+EXE_OBJ := $(EXE_SRC:$(TEST_DIR)/%.c=$(OBJ_DIR)/%.o)
 
 LIBSTATIC := $(LIB_DIR)/libfiles.a
 LIBSTATIC_SRC := $(SRC_DIR)/file1.c $(SRC_DIR)/file2.c
@@ -189,7 +189,7 @@ clean:
 ```bash
 $ make
 mkdir -p obj
-cc -Iinclude -MMD -MP -Wall -c src/main.c -o obj/main.o
+cc -Iinclude -MMD -MP -Wall -c test/test_filed.c -o obj/test_filed.o
 cc -Iinclude -MMD -MP -Wall -fPIC -c src/file3.c -o obj/file3.o
 cc -Iinclude -MMD -MP -Wall -fPIC -c src/file1.c -o obj/file1.o
 cc -Iinclude -MMD -MP -Wall -fPIC -c src/file2.c -o obj/file2.o
@@ -198,18 +198,20 @@ ar rcs lib/libfiles.a obj/file1.o obj/file2.o
 ranlib lib/libfiles.a
 cc -shared -o lib/libfiled.so -Wl,--whole-archive lib/libfiles.a -Wl,--no-whole-archive  obj/file3.o
 mkdir -p bin
-cc -Llib obj/main.o -lfiled -Wl,-rpath,./lib -o bin/embedlib
+cc -Llib obj/test_filed.o -lfiled -Wl,-rpath,./lib -o bin/test_filed
 ```
 
 ## with CMake
 
 The previous solutions are for Linux or Unix-like systems. For portability, we can use CMake.
 
-The CMakeLists.txt file:
+The Top Level CMakeLists.txt file:
 
 ```cmake
 cmake_minimum_required(VERSION 3.13)
 project(embedlib LANGUAGES C)
+
+set (CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/install")
 
 if (MSVC)
     set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
@@ -234,6 +236,7 @@ target_sources(filed
     PUBLIC
         include/filed.h)
 set_target_properties(filed PROPERTIES PUBLIC_HEADER "include/filed.h;include/files.h")
+add_dependencies(filed files)
 
 # This is a simple example of how to embed a library in another library
 # Since CMake 3.24, the CMAKE_LINK_LIBRARY_USING_WHOLE_ARCHIVE feature is available
@@ -249,16 +252,7 @@ else()
     message(FATAL_ERROR "CMAKE_LINK_LIBRARY_USING_WHOLE_ARCHIVE not supported")
 endif()
 
-# Create an executable that uses the filed library    
-add_executable(${PROJECT_NAME})
-target_sources(${PROJECT_NAME} PRIVATE "src/main.c")
-target_link_libraries(${PROJECT_NAME} PRIVATE filed)
-
 install(TARGETS filed PUBLIC_HEADER)
-install(TARGETS ${PROJECT_NAME})
-# Add the install directory to the rpath of the executable
-set_target_properties(${PROJECT_NAME} PROPERTIES
-    INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 
 # Add an uninstall target
 configure_file(
@@ -267,6 +261,20 @@ configure_file(
     IMMEDIATE @ONLY)
 add_custom_target(uninstall
     COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake)
+
+add_subdirectory(test)
+```
+
+And the CMakeLists.txt file in the test directory:
+
+```cmake
+add_executable(test_filed)
+target_sources(test_filed PRIVATE "test_filed.c")
+target_link_libraries(test_filed PRIVATE filed)
+
+install(TARGETS test_filed)
+# Add the install directory to the rpath of the executable
+set_target_properties(test_filed PROPERTIES INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 ```
 
 Then you can build and install the project. Below is an example of how to build and run the program on Linux:
@@ -275,7 +283,7 @@ Then you can build and install the project. Below is an example of how to build 
 $ mkdir -p build
 $ cd build
 $ cmake ..
--- The C compiler identification is GNU 11.4.0
+-- The C compiler identification is GNU 10.2.1
 -- Detecting C compiler ABI info
 -- Detecting C compiler ABI info - done
 -- Check for working C compiler: /usr/bin/cc - skipped
@@ -283,36 +291,35 @@ $ cmake ..
 -- Detecting C compile features - done
 -- Configuring done
 -- Generating done
--- Build files have been written to: /home/epsilonrt/src/EmbedStaticToSharedLib/build
+-- Build files have been written to: /home/pascal/src/EmbedStaticToSharedLib/build
 $ make
+Scanning dependencies of target files
 [ 14%] Building C object CMakeFiles/files.dir/src/file1.c.o
 [ 28%] Building C object CMakeFiles/files.dir/src/file2.c.o
 [ 42%] Linking C static library libfiles.a
 [ 42%] Built target files
+Scanning dependencies of target filed
 [ 57%] Building C object CMakeFiles/filed.dir/src/file3.c.o
 [ 71%] Linking C shared library libfiled.so
 [ 71%] Built target filed
-[ 85%] Building C object CMakeFiles/embedlib.dir/src/main.c.o
-[100%] Linking C executable embedlib
-[100%] Built target embedlib
-$ sudo make install
-Consolidate compiler generated dependencies of target files
+Scanning dependencies of target test_filed
+[ 85%] Building C object test/CMakeFiles/test_filed.dir/test_filed.c.o
+[100%] Linking C executable test_filed
+[100%] Built target test_filed
+$ make install
 [ 42%] Built target files
-Consolidate compiler generated dependencies of target filed
 [ 71%] Built target filed
-Consolidate compiler generated dependencies of target embedlib
-[100%] Built target embedlib
+[100%] Built target test_filed
 Install the project...
 -- Install configuration: ""
--- Installing: /usr/local/lib/libfiled.so
--- Installing: /usr/local/include/filed.h
--- Installing: /usr/local/include/files.h
--- Installing: /usr/local/bin/embedlib
--- Set runtime path of "/usr/local/bin/embedlib" to "/usr/local/lib"
-$ embedlib 
+-- Installing: /home/pascal/src/EmbedStaticToSharedLib/build/install/lib/libfiled.so
+-- Installing: /home/pascal/src/EmbedStaticToSharedLib/build/install/include/filed.h
+-- Installing: /home/pascal/src/EmbedStaticToSharedLib/build/install/include/files.h
+-- Installing: /home/pascal/src/EmbedStaticToSharedLib/build/install/bin/test_filed
+-- Set runtime path of "/home/pascal/src/EmbedStaticToSharedLib/build/install/bin/test_filed" to "/home/pascal/src/EmbedStaticToSharedLib/build/install/lib"
+$ ./install/bin/test_filed
 func1
-calling func2 from func3
-func2
+calling func2 from func3... func2
 func3
 ```
 
@@ -330,15 +337,15 @@ C:\Users\pasca\src\EmbedStaticToSharedLib>md build
 
 C:\Users\pasca\src\EmbedStaticToSharedLib>cd build
 
-C:\Users\pasca\src\EmbedStaticToSharedLib\build>cmake -G "NMake Makefiles" -DCMAKE_INSTALL_PREFIX=./embedlib ..
+C:\Users\pasca\src\EmbedStaticToSharedLib\build>cmake -G "NMake Makefiles" ..
 -- The C compiler identification is MSVC 19.37.32824.0
 -- Detecting C compiler ABI info
 -- Detecting C compiler ABI info - done
 -- Check for working C compiler: C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.37.32822/bin/Hostx64/x64/cl.exe - skipped
 -- Detecting C compile features
 -- Detecting C compile features - done
--- Configuring done (2.2s)
--- Generating done (0.2s)
+-- Configuring done (2.8s)
+-- Generating done (0.3s)
 -- Build files have been written to: C:/Users/pasca/src/EmbedStaticToSharedLib/build
 ```
 
@@ -362,10 +369,10 @@ file2.c
 file3.c
 [ 71%] Linking C shared library filed.dll
 [ 71%] Built target filed
-[ 85%] Building C object CMakeFiles/embedlib.dir/src/main.c.obj
-main.c
-[100%] Linking C executable embedlib.exe
-[100%] Built target embedlib
+[ 85%] Building C object test/CMakeFiles/test_filed.dir/test_filed.c.obj
+test_filed.c
+[100%] Linking C executable test_filed.exe
+[100%] Built target test_filed
 ```
 
 ![Build with NMake](doc/images/build-win.png)
@@ -373,35 +380,38 @@ main.c
 Then install the program:
 
 ```cmd
-C:\Users\pasca\src\EmbedStaticToSharedLib\build>nmake install
-
 Microsoft (R) Program Maintenance Utility Version 14.37.32824.0
 Copyright (C) Microsoft Corporation. Tous droits réservés.
 
 [ 42%] Built target files
 [ 71%] Built target filed
-[100%] Built target embedlib
+[100%] Built target test_filed
 Install the project...
 -- Install configuration: "Debug"
--- Installing: C:/Users/pasca/src/EmbedStaticToSharedLib/build/embedlib/lib/filed.lib
--- Installing: C:/Users/pasca/src/EmbedStaticToSharedLib/build/embedlib/bin/filed.dll
--- Installing: C:/Users/pasca/src/EmbedStaticToSharedLib/build/embedlib/include/filed.h
--- Installing: C:/Users/pasca/src/EmbedStaticToSharedLib/build/embedlib/include/files.h
--- Installing: C:/Users/pasca/src/EmbedStaticToSharedLib/build/embedlib/bin/embedlib.exe
-
-C:\Users\pasca\src\EmbedStaticToSharedLib\build>
+-- Installing: C:/Users/pasca/src/EmbedStaticToSharedLib/build/install/lib/filed.lib
+-- Installing: C:/Users/pasca/src/EmbedStaticToSharedLib/build/install/bin/filed.dll
+-- Installing: C:/Users/pasca/src/EmbedStaticToSharedLib/build/install/include/filed.h
+-- Installing: C:/Users/pasca/src/EmbedStaticToSharedLib/build/install/include/files.h
+-- Installing: C:/Users/pasca/src/EmbedStaticToSharedLib/build/install/bin/test_filed.exe
 ```
 
 Finally, run the program:
 
 ```cmd
-C:\Users\pasca\src\EmbedStaticToSharedLib\build>cd embedlib/bin
-
-C:\Users\pasca\src\EmbedStaticToSharedLib\build\embedlib\bin>embedlib.exe
+C:\Users\pasca\src\EmbedStaticToSharedLib\build>install\bin\test_filed.exe
 func1
-calling func2 from func3
-func2
+calling func2 from func3... func2
 func3
 ```
 
 ![Install and run](doc/images/install-run-win.png)
+
+On MacOS, you can use the same CMakeLists.txt file, and build and run the program same as on Linux.
+
+![Build on MacOS](doc/images/cmake-macos.png)
+
+Obvioulsy you need to install CMake and Xcode. CMake may be install with Brew, and Xcode with the App Store.
+
+```bash	
+$ brew install cmake
+```
