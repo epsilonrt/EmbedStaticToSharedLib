@@ -2,6 +2,8 @@
 cmake_minimum_required(VERSION 3.13)
 project(embedlib LANGUAGES C)
 
+set (CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/install")
+
 if (MSVC)
     set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 endif()
@@ -25,6 +27,7 @@ target_sources(filed
     PUBLIC
         include/filed.h)
 set_target_properties(filed PROPERTIES PUBLIC_HEADER "include/filed.h;include/files.h")
+add_dependencies(filed files)
 
 # This is a simple example of how to embed a library in another library
 # Since CMake 3.24, the CMAKE_LINK_LIBRARY_USING_WHOLE_ARCHIVE feature is available
@@ -40,16 +43,7 @@ else()
     message(FATAL_ERROR "CMAKE_LINK_LIBRARY_USING_WHOLE_ARCHIVE not supported")
 endif()
 
-# Create an executable that uses the filed library    
-add_executable(${PROJECT_NAME})
-target_sources(${PROJECT_NAME} PRIVATE "src/main.c")
-target_link_libraries(${PROJECT_NAME} PRIVATE filed)
-
 install(TARGETS filed PUBLIC_HEADER)
-install(TARGETS ${PROJECT_NAME})
-# Add the install directory to the rpath of the executable
-set_target_properties(${PROJECT_NAME} PROPERTIES
-    INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 
 # Add an uninstall target
 configure_file(
@@ -58,3 +52,5 @@ configure_file(
     IMMEDIATE @ONLY)
 add_custom_target(uninstall
     COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake)
+
+add_subdirectory(test)

@@ -1,12 +1,13 @@
 
 SRC_DIR := src
+TEST_DIR := test
 OBJ_DIR := obj
 BIN_DIR := bin
 LIB_DIR := lib
 
-EXE := $(BIN_DIR)/embedlib
-EXE_SRC := $(SRC_DIR)/main.c
-EXE_OBJ := $(EXE_SRC:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
+EXE := $(BIN_DIR)/test_filed
+EXE_SRC := $(TEST_DIR)/test_filed.c
+EXE_OBJ := $(EXE_SRC:$(TEST_DIR)/%.c=$(OBJ_DIR)/%.o)
 
 LIBSTATIC := $(LIB_DIR)/libfiles.a
 LIBSTATIC_SRC := $(SRC_DIR)/file1.c $(SRC_DIR)/file2.c
